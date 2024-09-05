@@ -59,11 +59,11 @@ def process_new():
             print(TPP_RUNNER_WRAPPER)
             continue
         if TIMER_LINE in l:
-            print("    %timer_start = func.call @perf_start_timer() : () -> i64")
+            print('    %timer_start = "func.call"() <{callee = @perf_start_timer}> : () -> (i64)')
         elif 'memref.dealloc' in l and not timer_ended:
             timer_ended = True
-            print("    %ttl_time = func.call @perf_stop_timer(%timer_start) : (i64) -> f64")
-            print("    vector.print %ttl_time : f64")
+            print('    %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64')
+            print('    "vector.print"(%ttl_time) : (f64) -> ()')
         print(l, end="")
 
 if __name__ == '__main__':
