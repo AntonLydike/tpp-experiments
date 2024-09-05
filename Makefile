@@ -12,13 +12,13 @@ accfg-input.mlir: base.mlir
 	tpp-opt -tpp-mapping -lower-packs-unpacks -canonicalize -cse -bufferize -linalg-lowering -convert-forall-to-parallel -scf-parallel-loop-tiling-pass=parallel-loop-tile-sizes=4,8 -canonicalize -intel-amx-tile-config-insertion-pass -loop-invariant-code-motion --mlir-print-op-generic $< | ./insert-func-call-to-timer.py --tpp-runner > $@
 
 tpp_baseline.mlir: accfg-input.mlir
-	tpp-opt $< -convert-xsmm-to-func -canonicalize -cse | sed 's/@tpp_entrypoint_name/@tpp_baseline/g' > $@
+	tpp-opt $< -convert-xsmm-to-func -canonicalize -cse | sed 's/tpp_entrypoint_name/tpp_baseline/g' > $@
 
 tpp_deduplicated.mlir: accfg-input.mlir
-	tpp-opt -intel-amx-tile-config-hoisting-pass -convert-xsmm-to-func -canonicalize -cse $< | sed 's/@tpp_entrypoint_name/@tpp_deduplicated/g' > $@
+	tpp-opt -intel-amx-tile-config-hoisting-pass -convert-xsmm-to-func -canonicalize -cse $< | sed 's/tpp_entrypoint_name/tpp_deduplicated/g' > $@
 
 accfg_deduplicated.mlir: accfg-input.mlir
-	./xsmm-to-accfg.py $< | snax-opt --print-op-generic --allow-unregistered-dialect -p "accfg-trace-states,accfg-dedup,accfg-insert-resets" | ./xsmm-to-accfg.py --reverse - | sed 's/@tpp_entrypoint_name/@accfg_deduplicated/g' | tpp-opt -convert-xsmm-to-func -canonicalize -cse > $@
+	./xsmm-to-accfg.py $< | snax-opt --print-op-generic --allow-unregistered-dialect -p "accfg-trace-states,accfg-dedup,accfg-insert-resets" | ./xsmm-to-accfg.py --reverse - | sed 's/tpp_entrypoint_name/accfg_deduplicated/g' | tpp-opt -convert-xsmm-to-func -canonicalize -cse > $@
 
 %.ll: %.mlir
 	 mlir-opt $< --expand-strided-metadata \
