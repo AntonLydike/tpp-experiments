@@ -83,16 +83,16 @@ module {
       }
       scf.reduce 
     }
-    %2 = call @perf_start_timer() : () -> i64
-    %3 = call @xsmm_intel_amx_tile_config_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2112_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
-    %4 = call @xsmm_intel_amx_tile_config_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2176_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
-    %5 = call @xsmm_brgemm_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2240_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
+    %2 = call @xsmm_intel_amx_tile_config_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2112_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
+    %3 = call @xsmm_intel_amx_tile_config_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2176_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
+    %4 = call @xsmm_brgemm_dispatch(%c2_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c32_i64, %c1024_i64, %c1024_i64, %c1024_i64, %c2240_i64) : (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
+    %5 = call @perf_start_timer() : () -> i64
     scf.parallel (%arg3, %arg4) = (%c0, %c0) to (%c32, %c32) step (%c4, %c8) {
       %alloca = memref.alloca() : memref<64xi8>
       %intptr = memref.extract_aligned_pointer_as_index %alloca : memref<64xi8> -> index
       %7 = arith.index_cast %intptr : index to i64
       %8 = llvm.inttoptr %7 : i64 to !llvm.ptr
-      func.call @xsmm_intel_amx_tile_config_invoke(%c2_i64, %3, %8, %c0) : (i64, i64, !llvm.ptr, index) -> ()
+      func.call @xsmm_intel_amx_tile_config_invoke(%c2_i64, %2, %8, %c0) : (i64, i64, !llvm.ptr, index) -> ()
       scf.for %arg5 = %c0 to %c4 step %c1 {
         %9 = arith.addi %arg5, %arg3 : index
         %10 = affine.apply #map(%9)
@@ -114,14 +114,15 @@ module {
           %intptr_13 = memref.extract_aligned_pointer_as_index %subview_2 : memref<32x32xbf16, strided<[1024, 1], offset: ?>> -> index
           %17 = arith.index_cast %intptr_13 : index to i64
           %18 = llvm.inttoptr %17 : i64 to !llvm.ptr
-          func.call @xsmm_brgemm_invoke(%c2_i64, %5, %14, %offset, %16, %offset_5, %18, %offset_10, %c32_i64) : (i64, i64, !llvm.ptr, index, !llvm.ptr, index, !llvm.ptr, index, i64) -> ()
+          func.call @xsmm_brgemm_invoke(%c2_i64, %4, %14, %offset, %16, %offset_5, %18, %offset_10, %c32_i64) : (i64, i64, !llvm.ptr, index, !llvm.ptr, index, !llvm.ptr, index, i64) -> ()
         }
       }
-      func.call @xsmm_intel_amx_tile_config_invoke(%c2_i64, %4, %8, %c0) : (i64, i64, !llvm.ptr, index) -> ()
+      func.call @xsmm_intel_amx_tile_config_invoke(%c2_i64, %3, %8, %c0) : (i64, i64, !llvm.ptr, index) -> ()
       scf.reduce 
     }
-    %6 = call @perf_stop_timer(%2) : (i64) -> f64
+    %6 = call @perf_stop_timer(%5) : (i64) -> f64
     vector.print %6 : f64
+    memref.dealloc %alloc : memref<32x32x32x32xbf16>
     return
   }
 }

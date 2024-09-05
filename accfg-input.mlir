@@ -78,10 +78,10 @@
       }) : (index, index, index) -> ()
       "scf.reduce"() : () -> ()
     }) : (index, index, index, index, index, index) -> ()
-    %timer_start = "func.call"() <{callee = @perf_start_timer}> : () -> (i64)
     %10 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 64], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
     %11 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
     %12 = "xsmm.brgemm.dispatch"() <{data_type = 2 : i64, flags = [4096, 64, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
+    %timer_start = "func.call"() <{callee = @perf_start_timer}> : () -> (i64)
     "scf.parallel"(%4, %4, %3, %3, %1, %0) <{operandSegmentSizes = array<i32: 2, 2, 2, 0>}> ({
     ^bb0(%arg3: index, %arg4: index):
       "scf.for"(%4, %1, %2) ({
@@ -107,6 +107,7 @@
     }) : (index, index, index, index, index, index) -> ()
     %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64
     "vector.print"(%ttl_time) : (f64) -> ()
+    "memref.dealloc"(%6) : (memref<32x32x32x32xbf16>) -> ()
     "func.return"() : () -> ()
   }) : () -> ()
 }) : () -> ()
