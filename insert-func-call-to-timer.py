@@ -3,7 +3,7 @@
 import sys
 
 # insert the timer before this line
-TIMER_LINE = '%10 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 64], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64'
+TIMER_LINE = 'xsmm.brgemm.dispatch'
 
 def process_old():
     """
@@ -57,17 +57,19 @@ def process_new():
         if "builtin.module" in l:
             print(l, end="")
             print(TPP_RUNNER_WRAPPER)
-            continue
-        if TIMER_LINE in l:
+        elif TIMER_LINE in l:
+            print(l, end="")
             print('    %timer_start = "func.call"() <{callee = @perf_start_timer}> : () -> (i64)')
         elif 'memref.dealloc' in l and not timer_ended:
             timer_ended = True
             print('    %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64')
             print('    "vector.print"(%ttl_time) : (f64) -> ()')
+            print(l, end="")
         # eat all deallocations because tpp-run doesn't like them
-        if 'memref.dealloc' in l:
-            continue
-        print(l, end="")
+        elif 'memref.dealloc' in l:
+            pass
+        else:
+            print(l, end="")
 
 if __name__ == '__main__':
     if '--tpp-runner' in sys.argv:
