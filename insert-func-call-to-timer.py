@@ -20,27 +20,32 @@ def process_old():
             print(l, end="")
 
 TPP_RUNNER_WRAPPER = """
-  func.func @entry() {
-    %c0 = arith.constant 0 : index
-    %f0 = arith.constant 1.0 : bf16
-    %da = memref.alloc() :memref<1024x1024xbf16>
-    linalg.fill ins(%f0 : bf16) outs(%da : memref<1024x1024xbf16>)
-    // Call kernel.
-    %0 = memref.alloc() : memref<1024x1024xbf16>
-    linalg.fill ins(%f0:bf16) outs (%0: memref<1024x1024xbf16>)
-    %D = memref.alloc() : memref<1024x1024xbf16>
-    %zero = arith.constant 0.0 : bf16
-    linalg.fill ins(%zero : bf16) outs(%D:memref<1024x1024xbf16>)
-    call @tpp_entrypoint_name(%da, %0, %D)
-        : (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>)->()
-
-    // TODO: check output for correctness?
-
-    return
-  }
-
-  func.func private @perf_start_timer() -> i64
-  func.func private @perf_stop_timer(i64) -> f64
+  "func.func"() <{function_type = () -> (), sym_name = "entry"}> ({
+    %35 = "arith.constant"() <{value = 0 : index}> : () -> index
+    %36 = "arith.constant"() <{value = 1.000000e+00 : bf16}> : () -> bf16
+    %37 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    "linalg.fill"(%36, %37) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg19: bf16, %arg20: bf16):
+      "linalg.yield"(%arg19) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %38 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    "linalg.fill"(%36, %38) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg17: bf16, %arg18: bf16):
+      "linalg.yield"(%arg17) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %39 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    %40 = "arith.constant"() <{value = 0.000000e+00 : bf16}> : () -> bf16
+    "linalg.fill"(%40, %39) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg15: bf16, %arg16: bf16):
+      "linalg.yield"(%arg15) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    "func.call"(%37, %38, %39) <{callee = @tpp_entrypoint_name}> : (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>) -> ()
+    "func.return"() : () -> ()
+  }) : () -> ()
+  "func.func"() <{function_type = () -> i64, sym_name = "perf_start_timer", sym_visibility = "private"}> ({
+  }) : () -> ()
+  "func.func"() <{function_type = (i64) -> f64, sym_name = "perf_stop_timer", sym_visibility = "private"}> ({
+  }) : () -> ()
 """
 
 def process_new():
