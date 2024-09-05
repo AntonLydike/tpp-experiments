@@ -92,7 +92,7 @@ module {
     %7 = arith.index_cast %intptr : index to i64
     %8 = llvm.inttoptr %7 : i64 to !llvm.ptr
     func.call @xsmm_intel_amx_tile_config_invoke(%c2_i64, %2, %8, %c0) : (i64, i64, !llvm.ptr, index) -> ()
-    scf.parallel (%arg3, %arg4) = (%c0, %c0) to (%c32, %c32) step (%c4, %c8) {
+    scf.parallel (%arg3, %arg4) = (%c0, %c0) to (%c8, %c8) step (%c4, %c8) {
       scf.for %arg5 = %c0 to %c4 step %c1 {
         %9 = arith.addi %arg5, %arg3 : index
         %10 = affine.apply #map(%9)
