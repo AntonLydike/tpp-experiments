@@ -7,7 +7,7 @@ module {
   func.func private @xsmm_brgemm_dispatch(i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) -> i64
   func.func private @xsmm_unary_invoke(i64, i64, !llvm.ptr, index, !llvm.ptr, index)
   func.func private @xsmm_unary_dispatch(i64, i64, i64, i64, i64, i64, i64) -> i64
-  func.func @tpp_entrypoint_name(%arg0: memref<1024x1024xbf16>, %arg1: memref<1024x1024xbf16>, %arg2: memref<1024x1024xbf16>) {
+  func.func @accfg_deduplicated(%arg0: memref<1024x1024xbf16>, %arg1: memref<1024x1024xbf16>, %arg2: memref<1024x1024xbf16>) {
     %c2176_i64 = arith.constant 2176 : i64
     %c2240_i64 = arith.constant 2240 : i64
     %c2112_i64 = arith.constant 2112 : i64

@@ -20,6 +20,19 @@ tpp_deduplicated.mlir: accfg-input.mlir
 accfg_deduplicated.mlir: accfg-input.mlir
 	./xsmm-to-accfg.py $< | snax-opt --print-op-generic --allow-unregistered-dialect -p "accfg-trace-states,accfg-dedup,accfg-insert-resets" | ./xsmm-to-accfg.py --reverse - | sed 's/@tpp_entrypoint_name/@accfg_deduplicated/g' | tpp-opt -convert-xsmm-to-func -canonicalize -cse > $@
 
+%.ll: %.mlir
+	 mlir-opt $< --expand-strided-metadata \
+ --fold-memref-alias-ops --lower-affine  \
+ --convert-scf-to-openmp \
+ --convert-func-to-llvm=use-bare-ptr-memref-call-conv=true \
+ --reconcile-unrealized-casts \
+ --finalize-memref-to-llvm --canonicalize \
+ --convert-openmp-to-llvm \
+ --convert-scf-to-cf \
+ --convert-arith-to-llvm \
+ --canonicalize \
+ | sed 's/index/i64/g' \
+ | mlir-opt -reconcile-unrealized-casts --convert-to-llvm > $@
 
 # individual benchmark runners rules:
 # these require the object file to be built. I don't know how to do that, so omitted from this file.
