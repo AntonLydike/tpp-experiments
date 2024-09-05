@@ -3,3 +3,5 @@
 *.ll
 /venv
 /snax-mlir
+*.mxm
+*.meltw
