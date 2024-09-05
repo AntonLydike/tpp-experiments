@@ -18,7 +18,7 @@ func.func @entry() {
   %D = memref.alloc() : memref<1024x1024xbf16>
   %zero = arith.constant 0.0 : bf16
   linalg.fill ins(%zero : bf16) outs(%D:memref<1024x1024xbf16>)
-  call @matmultpp(%da, %0, %D)
+  call @tpp_entrypoint_name(%da, %0, %D)
        : (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>)->()
 
   // TODO: check output for correctness?
@@ -27,4 +27,4 @@ func.func @entry() {
 }
 
   func.func private @perf_start_timer() -> i64
-  func.func private @time_kernel_start(i64) -> f64
+  func.func private @perf_stop_timer(i64) -> f64
