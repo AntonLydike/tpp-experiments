@@ -1,6 +1,33 @@
 #map = affine_map<(d0) -> (d0 * 32)>
 "builtin.module"() ({
-  func.func private @time_kernel_start()
+
+  "func.func"() <{function_type = () -> (), sym_name = "entry"}> ({
+    %35 = "arith.constant"() <{value = 0 : index}> : () -> index
+    %36 = "arith.constant"() <{value = 1.000000e+00 : bf16}> : () -> bf16
+    %37 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    "linalg.fill"(%36, %37) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg19: bf16, %arg20: bf16):
+      "linalg.yield"(%arg19) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %38 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    "linalg.fill"(%36, %38) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg17: bf16, %arg18: bf16):
+      "linalg.yield"(%arg17) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %39 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
+    %40 = "arith.constant"() <{value = 0.000000e+00 : bf16}> : () -> bf16
+    "linalg.fill"(%40, %39) <{operandSegmentSizes = array<i32: 1, 1>}> ({
+    ^bb0(%arg15: bf16, %arg16: bf16):
+      "linalg.yield"(%arg15) : (bf16) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    "func.call"(%37, %38, %39) <{callee = @tpp_entrypoint_name}> : (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>) -> ()
+    "func.return"() : () -> ()
+  }) : () -> ()
+  "func.func"() <{function_type = () -> i64, sym_name = "perf_start_timer", sym_visibility = "private"}> ({
+  }) : () -> ()
+  "func.func"() <{function_type = (i64) -> f64, sym_name = "perf_stop_timer", sym_visibility = "private"}> ({
+  }) : () -> ()
+
   "func.func"() <{function_type = (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>) -> (), sym_name = "tpp_entrypoint_name"}> ({
   ^bb0(%arg0: memref<1024x1024xbf16>, %arg1: memref<1024x1024xbf16>, %arg2: memref<1024x1024xbf16>):
     %0 = "arith.constant"() <{value = 8 : index}> : () -> index
@@ -51,7 +78,7 @@
       }) : (index, index, index) -> ()
       "scf.reduce"() : () -> ()
     }) : (index, index, index, index, index, index) -> ()
-    func.call @time_kernel_start() : () -> ()
+    %timer_start = "func.call"() <{callee = @perf_start_timer}> : () -> (i64)
     %10 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 64], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
     %11 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
     %12 = "xsmm.brgemm.dispatch"() <{data_type = 2 : i64, flags = [4096, 64, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64
@@ -78,8 +105,8 @@
       }) : (index, index, index) -> ()
       "scf.reduce"() : () -> ()
     }) : (index, index, index, index, index, index) -> ()
-    "memref.dealloc"(%6) : (memref<32x32x32x32xbf16>) -> ()
-    "memref.dealloc"(%8) : (memref<32x32x16x32x2xbf16>) -> ()
+    %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64
+    "vector.print"(%ttl_time) : (f64) -> ()
     "func.return"() : () -> ()
   }) : () -> ()
 }) : () -> ()
