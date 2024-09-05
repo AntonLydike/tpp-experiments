@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 import re
@@ -28,12 +28,11 @@ REVERSE_REPLACEMENTS = {
     '      %alloca = "memref.alloca"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<64xi8>\n      "xsmm.IntelAMXtileConfig"(%22, %alloca) : (i64, memref<64xi8>) -> ()\n',
     '%22 = "xsmm.IntelAMXtileConfig.dispatch"() <{"data_type" = 2 : i64, "flags" = [4096 : i64, 64 : i64], "inputs" = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64':
     '      %22 = "xsmm.IntelAMXtileConfig.dispatch"() <{"data_type" = 2 : i64, "flags" = [4096 : i64, 64 : i64], "inputs" = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64\n'
-    '      %resetcfg = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64'
+    '      %resetcfg = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64',
     '%t = "accfg.launch"(%23, %29, %33, %34, %5, %state) <{"param_names" = ["gemm", "a", "b", "out", "size"], "accelerator" = "amx"}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64, !accfg.state<"amx">) -> !accfg.token<"amx">':
     '          "xsmm.brgemm"(%23, %29, %33, %34, %5) <{data_type = 2 : i64}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64) -> ()\n',
     '"accfg.await"(%t) : (!accfg.token<"amx">) -> ()': '',
     '"accfg.reset"(%25) : (!accfg.state<"amx">) -> ()':
-
     '      "xsmm.IntelAMXtileConfig"(%resetcfg, %alloca) : (i64, memref<64xi8>) -> ()\n',
     '%25 = "scf.for"(%4, %1, %2, %24) ({': '      "scf.for"(%4, %1, %2) ({',
     '^8(%arg5 : index, %26 : !accfg.state<"amx">):': '      ^8(%arg5 : index):',
