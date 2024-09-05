@@ -9,7 +9,7 @@ venv:
 	bash -c "source venv/bin/activate && pip install ./snax-mlir && pip install git+https://github.com/xdslproject/xdsl.git@566496ddd8a9c5109fd577a230cba73c9ace47f3"
 
 accfg-input.mlir: base.mlir
-	tpp-opt -tpp-mapping -lower-packs-unpacks -canonicalize -cse -bufferize -linalg-lowering -convert-forall-to-parallel -scf-parallel-loop-tiling-pass=parallel-loop-tile-sizes=4,8 -canonicalize -intel-amx-tile-config-insertion-pass -loop-invariant-code-motion --mlir-print-op-generic $< | ./insert-func-call-to-timer.py > $@
+	tpp-opt -tpp-mapping -lower-packs-unpacks -canonicalize -cse -bufferize -linalg-lowering -convert-forall-to-parallel -scf-parallel-loop-tiling-pass=parallel-loop-tile-sizes=4,8 -canonicalize -intel-amx-tile-config-insertion-pass -loop-invariant-code-motion --mlir-print-op-generic $< | ./insert-func-call-to-timer.py --tpp-runner > $@
 
 tpp_baseline.mlir: accfg-input.mlir
 	tpp-opt $< -convert-xsmm-to-func -canonicalize -cse | sed 's/@tpp_entrypoint_name/@tpp_baseline/g' > $@
