@@ -23,23 +23,23 @@ TPP_RUNNER_WRAPPER = """
   "func.func"() <{function_type = () -> (), sym_name = "entry"}> ({
     %35 = "arith.constant"() <{value = 0 : index}> : () -> index
     %36 = "arith.constant"() <{value = 1.000000e+00 : bf16}> : () -> bf16
-    %37 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<2048x2048xbf16>
+    %37 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
     "linalg.fill"(%36, %37) <{operandSegmentSizes = array<i32: 1, 1>}> ({
     ^bb0(%arg19: bf16, %arg20: bf16):
       "linalg.yield"(%arg19) : (bf16) -> ()
-    }) : (bf16, memref<2048x2048xbf16>) -> ()
-    %38 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<2048x2048xbf16>
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %38 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
     "linalg.fill"(%36, %38) <{operandSegmentSizes = array<i32: 1, 1>}> ({
     ^bb0(%arg17: bf16, %arg18: bf16):
       "linalg.yield"(%arg17) : (bf16) -> ()
-    }) : (bf16, memref<2048x2048xbf16>) -> ()
-    %39 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<2048x2048xbf16>
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    %39 = "memref.alloc"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<1024x1024xbf16>
     %40 = "arith.constant"() <{value = 0.000000e+00 : bf16}> : () -> bf16
     "linalg.fill"(%40, %39) <{operandSegmentSizes = array<i32: 1, 1>}> ({
     ^bb0(%arg15: bf16, %arg16: bf16):
       "linalg.yield"(%arg15) : (bf16) -> ()
-    }) : (bf16, memref<2048x2048xbf16>) -> ()
-    "func.call"(%37, %38, %39) <{callee = @tpp_entrypoint_name}> : (memref<2048x2048xbf16>, memref<2048x2048xbf16>, memref<2048x2048xbf16>) -> ()
+    }) : (bf16, memref<1024x1024xbf16>) -> ()
+    "func.call"(%37, %38, %39) <{callee = @tpp_entrypoint_name}> : (memref<1024x1024xbf16>, memref<1024x1024xbf16>, memref<1024x1024xbf16>) -> ()
     "func.return"() : () -> ()
   }) : () -> ()
   "func.func"() <{function_type = () -> i64, sym_name = "perf_start_timer", sym_visibility = "private"}> ({
