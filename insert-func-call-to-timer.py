@@ -64,7 +64,6 @@ def process_new():
             timer_ended = True
             print('    %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64')
             print('    "vector.print"(%ttl_time) : (f64) -> ()')
-            print(l, end="")
         # eat all deallocations because tpp-run doesn't like them
         elif 'memref.dealloc' in l:
             pass

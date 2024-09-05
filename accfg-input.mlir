@@ -107,7 +107,6 @@
     }) : (index, index, index, index, index, index) -> ()
     %ttl_time = "func.call"(%timer_start) <{callee = @perf_stop_timer}> : (i64) -> f64
     "vector.print"(%ttl_time) : (f64) -> ()
-    "memref.dealloc"(%6) : (memref<32x32x32x32xbf16>) -> ()
     "func.return"() : () -> ()
   }) : () -> ()
 }) : () -> ()

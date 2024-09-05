@@ -122,7 +122,6 @@ module {
     }
     %6 = call @perf_stop_timer(%5) : (i64) -> f64
     vector.print %6 : f64
-    memref.dealloc %alloc : memref<32x32x32x32xbf16>
     return
   }
 }
