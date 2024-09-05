@@ -50,7 +50,7 @@ def process_new():
     timer_ended = False
     for l in sys.stdin:
         if "builtin.module" in l:
-            print(l)
+            print(l, end="")
             print(TPP_RUNNER_WRAPPER)
             continue
         if TIMER_LINE in l:
@@ -59,7 +59,7 @@ def process_new():
             timer_ended = True
             print("    %ttl_time = func.call @perf_stop_timer(%timer_start) : (i64) -> f64")
             print("    vector.print %ttl_time : f64")
-        print(l)
+        print(l, end="")
 
 if __name__ == '__main__':
     if '--tpp-runner' in sys.argv:
