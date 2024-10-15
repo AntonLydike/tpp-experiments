@@ -48,3 +48,8 @@ func.func @entry(%arg0: tensor<1024x1024xbf16>,
 
 Note: After this the IR appears to be in the same form as `default-tpp-passes`, but it's actually slightly different!
 
+
+## Benchmarking:
+
+- `sudo dnf install python3.11`
+- `make venv PYTHON=python3.11`

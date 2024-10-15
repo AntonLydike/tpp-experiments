@@ -1,67 +1,221 @@
 #!/usr/bin/env python3
 
 import sys
-import re
+from typing import Sequence, TextIO
+from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, PatternRewriteWalker
+from xdsl.passes import ModulePass
+from xdsl.xdsl_opt_main import xDSLOptMain
+from xdsl.ir import SSAValue, Operation
+from xdsl.dialects.builtin import UnregisteredOp
+import io
+from dataclasses import dataclass
 
-REPLACEMENTS = {
-    '"scf.reduce"() : () -> ()': '"scf.yield"() : () -> ()',
-    '%11 = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64': '',
-    '%20 = "memref.alloca"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<64xi8>': "",
-    '"xsmm.IntelAMXtileConfig"(%10, %20) : (i64, memref<64xi8>) -> ()': 
-    '          %state = "accfg.setup"(%10) <{param_names=["conf"], accelerator="amx", operandSegmentSizes = array<i32: 1, 0>}> : (i64) -> !accfg.state<"amx">\n',
-    '"xsmm.brgemm"(%12, %15, %18, %19, %5) <{data_type = 2 : i64}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64) -> ()': 
-    '          %t = "accfg.launch"(%12, %15, %18, %19, %5, %state) <{"param_names" = ["gemm", "a", "b", "out", "size"], "accelerator" = "amx"}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64, !accfg.state<"amx">) -> (!accfg.token<"amx">)\n',
-    '"xsmm.IntelAMXtileConfig"(%11, %20) : (i64, memref<64xi8>) -> ()': 
-    '          "accfg.await"(%t) : (!accfg.token<"amx">) -> ()\n',
-}
+# monkey-patch accfg dialect in xdsl
+from compiler.dialects import accfg
+from xdsl.dialects import accfg as xdsl_accfg
+from xdsl.dialects import memref, builtin, func
+xdsl_accfg.ACCFG = accfg.ACCFG
+
+from compiler.transforms import convert_accfg_to_csr
+
+@dataclass
+class XSMMToAccfgPattern(RewritePattern):
+    state: None | SSAValue = None
+    token: None | SSAValue = None
+
+    def match_and_rewrite(self, op, rewriter: PatternRewriter):
+        if not isinstance(op, UnregisteredOp):
+            return
+
+        if op.op_name.data == "xsmm.IntelAMXtileConfig":
+            is_reset = 128 in [x.value.data for x in op.operands[0].owner.properties["flags"]]
+            if is_reset:
+                buff_op = op.operands[1].owner
+                rewriter.replace_matched_op(
+                    accfg.AwaitOp(self.token)
+                )
+            else:
+                buff_op = op.operands[1].owner
+                rewriter.replace_matched_op(
+                    setup_op := accfg.SetupOp(op.operands[0], ["conf"], "amx"),
+                    new_results=[],
+                )
+                self.state = setup_op.out_state
+
+            # we need to erase the buffer alloc op as well
+            # but we only delete it after rewriting the last setup op
+            if len(buff_op.results[0].uses) == 0:
+                rewriter.erase_op(buff_op)
+
+        elif op.op_name.data == "xsmm.brgemm":
+            rewriter.replace_matched_op(
+                launch := accfg.LaunchOp(op.operands, ["gemm", "a", "b", "out", "size"], self.state),
+                new_results=[],
+            )
+            self.token = launch.token
+
+xsmm_IntelAMXtileConfigOp = UnregisteredOp.with_name("xsmm.IntelAMXtileConfig")
+xsmm_brgemmOp = UnregisteredOp.with_name("xsmm.brgemm")
+xsmm_IntelAMXtileConfig_dispatchOp = UnregisteredOp.with_name("xsmm.IntelAMXtileConfig.dispatch")
+
+configMemrefType = builtin.MemRefType(builtin.IntegerType(8), [64])
+
+@dataclass
+class ACCFGToXSMMPattern(RewritePattern):
+    alloced: SSAValue | None = None
+
+    def match_and_rewrite(self, op, rewriter: PatternRewriter):
+        if isinstance(op, accfg.SetupOp):
+            rewriter.replace_matched_op(
+                [
+                    alloc := memref.Alloca([], [], configMemrefType),
+                    xsmm_IntelAMXtileConfigOp.create(
+                        operands=[*op.values, alloc.memref],
+                    ),
+                ], 
+                new_results=[None], 
+                safe_erase=False
+            )
+            self.alloced = alloc.memref
+        elif isinstance(op, accfg.LaunchOp):
+            rewriter.replace_matched_op(
+                xsmm_brgemmOp.create(
+                    operands=[*op.operands],
+                    properties={"data_type": builtin.IntegerAttr.from_int_and_width(2, 64)}
+                ),
+                new_results=[None],
+                safe_erase=False,
+            )
+        elif isinstance(op, accfg.AwaitOp):
+            rewriter.erase_matched_op()
+        elif isinstance(op, accfg.ResetOp):
+            reset_cfg = find_reset_conf(op)
+            rewriter.replace_matched_op([
+                xsmm_IntelAMXtileConfigOp.create(
+                    operands=[reset_cfg, self.alloced],
+                ),
+            ], new_results=[])
+
+
+def find_reset_conf(op: Operation):
+    func_op = op
+    while not isinstance(func_op, func.FuncOp):
+        func_op = func_op.parent_op()
+    for op in func_op.body.block.ops:
+        if isinstance(op, UnregisteredOp) and op.op_name.data == 'xsmm.IntelAMXtileConfig.dispatch':
+            is_reset = 128 in [x.value.data for x in op.properties["flags"]]
+            if is_reset:
+                return op.results[0]
+
+
+class XSMMToAccfgPass(ModulePass):
+    name = "xsmm-to-accfg"
+
+    def apply(self, ctx, op):
+        PatternRewriteWalker(
+            XSMMToAccfgPattern(),
+            apply_recursively=False,
+        ).rewrite_module(op)
+
+
+class ACCFGToXSMMPass(ModulePass):
+    name = "accfg-to-xsmm"
+
+    def apply(self, ctx, op):
+        PatternRewriteWalker(
+            ACCFGToXSMMPattern(),
+            apply_recursively=False,
+        ).rewrite_module(op)
+        PatternRewriteWalker(
+            convert_accfg_to_csr.DeleteAllStates(),
+        ).rewrite_module(op)
+
+        
 def process(prog: str):
-    with open(prog, "r") as f:
-        for l in f:
-            if '<{overflowFlags = #arith.overflow<none>}>' in l:
-                l = l.replace('<{overflowFlags = #arith.overflow<none>}>', '')
-            print(REPLACEMENTS.get(l.strip(), l), end="")
+    obj = StreamingXDSLOptMain(args=[
+        "-p", XSMMToAccfgPass.name, '--allow-unregistered-dialect', '--print-op-generic'
+    ], input=io.StringIO(prog), passes=(XSMMToAccfgPass,))
+    obj.run()
+    print(obj.get_written_output())
 
-
-
-REVERSE_REPLACEMENTS = {
-    '%24 = "accfg.setup"(%22) <{"param_names" = ["conf"], "accelerator" = "amx", "operandSegmentSizes" = array<i32: 1, 0>}> : (i64) -> !accfg.state<"amx">':
-    '      %alloca = "memref.alloca"() <{operandSegmentSizes = array<i32: 0, 0>}> : () -> memref<64xi8>\n      "xsmm.IntelAMXtileConfig"(%22, %alloca) : (i64, memref<64xi8>) -> ()\n',
-    '%22 = "xsmm.IntelAMXtileConfig.dispatch"() <{"data_type" = 2 : i64, "flags" = [4096 : i64, 64 : i64], "inputs" = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64':
-    '      %22 = "xsmm.IntelAMXtileConfig.dispatch"() <{"data_type" = 2 : i64, "flags" = [4096 : i64, 64 : i64], "inputs" = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64\n'
-    '      %resetcfg = "xsmm.IntelAMXtileConfig.dispatch"() <{data_type = 2 : i64, flags = [4096, 128], inputs = array<i64: 32, 32, 32, 32, 32, 1024, 1024, 1024>}> : () -> i64',
-    '%t = "accfg.launch"(%23, %29, %33, %34, %5, %state) <{"param_names" = ["gemm", "a", "b", "out", "size"], "accelerator" = "amx"}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64, !accfg.state<"amx">) -> !accfg.token<"amx">':
-    '          "xsmm.brgemm"(%23, %29, %33, %34, %5) <{data_type = 2 : i64}> : (i64, memref<32x32x32xbf16, strided<[1024, 32, 1], offset: ?>>, memref<32x16x32x2xbf16, strided<[1024, 64, 2, 1], offset: ?>>, memref<32x32xbf16, strided<[1024, 1], offset: ?>>, i64) -> ()\n',
-    '"accfg.await"(%t) : (!accfg.token<"amx">) -> ()': '',
-    '"accfg.reset"(%25) : (!accfg.state<"amx">) -> ()':
-    '      "xsmm.IntelAMXtileConfig"(%resetcfg, %alloca) : (i64, memref<64xi8>) -> ()\n',
-    '%25 = "scf.for"(%4, %1, %2, %24) ({': '      "scf.for"(%4, %1, %2) ({',
-    '^8(%arg5 : index, %26 : !accfg.state<"amx">):': '      ^8(%arg5 : index):',
-    '%30 = "scf.for"(%4, %0, %2, %26) ({': '        "scf.for"(%4, %0, %2) ({',
-    '^9(%arg6 : index, %state : !accfg.state<"amx">):': '        ^9(%arg6 : index):',
-    '"scf.yield"(%state) : (!accfg.state<"amx">) -> ()': '          "scf.yield"() : () -> ()',
-    '}) : (index, index, index, !accfg.state<"amx">) -> !accfg.state<"amx">': '}) : (index, index, index) -> ()',
-    '"scf.yield"(%30) : (!accfg.state<"amx">) -> ()': '        "scf.yield"() : () -> ()'
-}
 
 def reverse(prog: str):
-    outstr = ""
-    if prog == '-':
-        for l in sys.stdin:
-            outstr += REVERSE_REPLACEMENTS.get(l.strip(), l)
-    else:
-        with open(prog, "r") as f:
-            for l in f:
-                outstr += REVERSE_REPLACEMENTS.get(l.strip(), l)
+    obj = StreamingXDSLOptMain(args=[
+        "-p", ACCFGToXSMMPass.name, '--allow-unregistered-dialect', '--print-op-generic'
+    ], input=io.StringIO(prog), passes=(ACCFGToXSMMPass,))
+    obj.run()
+    print(obj.get_written_output().replace(
+        '"scf.yield"() {"was_reduce"}', '"scf.reduce"()'
+    ))
+
+
+class StreamingXDSLOptMain(xDSLOptMain):
+    _input_stream: TextIO
+    _output_stream: TextIO
+    _passes: Sequence[type[ModulePass]]
+
+    def __init__(self, description = "xDSL modular optimizer driver", args = None, input = None, output = None, passes = tuple()):
+        self._passes = passes
+        super().__init__(description, args)
+        self._input_stream = input
+        if output is None:
+            output = io.StringIO()
+        self._output_stream = output
     
-    outstr = re.sub(r'arith.addi"(\(.*\)) :', r'arith.addi"\1 <{overflowFlags = #arith.overflow<none>}> :', outstr)
+    def register_all_passes(self):
+        super().register_all_passes()
+        for _pass in self._passes:
+            self.register_pass(_pass.name, lambda _pass=_pass: _pass)
 
-    outstr = outstr.replace('      "scf.yield"() : () -> ()\n    }) : (index, index, index, index, index, index) -> ()', '      "scf.reduce"() : () -> ()\n    }) : (index, index, index, index, index, index) -> ()')
-    print(outstr)
+    def get_written_output(self) -> str | None:
+        if isinstance(self._output_stream, io.StringIO):
+            return self._output_stream.getvalue()
 
+    def get_input_stream(self):
+        return self._input_stream, "mlir"
+    
+    def prepare_output(self):
+        return self._output_stream
+        
+    def run(self):
+        """
+        Executes the different steps.
+        """
+        # we overwrite run to not call close at the end, as to not throw
+        # away our StringIO buffers just yet
+        chunks, file_extension = self.prepare_input()
+        output_stream = self.prepare_output()
+        try:
+            for i, (chunk, offset) in enumerate(chunks):
+                try:
+                    if i > 0:
+                        output_stream.write("// -----\n")
+                    module = self.parse_chunk(chunk, file_extension, offset)
+
+                    if module is not None:
+                        if self.apply_passes(module):
+                            output_stream.write(self.output_resulting_program(module))
+                    output_stream.flush()
+                finally:
+                    chunk.close()
+        finally:
+            if output_stream is not sys.stdout and not isinstance(output_stream, io.StringIO):
+                output_stream.close()
 
 
 if __name__ == '__main__':
-    if "--reverse" in sys.argv:
-        reverse(sys.argv[-1])
+    inp = sys.argv[-1]
+    prog = ""
+    if inp == "-":
+        prog = []
+        for l in sys.stdin:
+            prog.append(l)
+        prog = "".join(prog)
     else:
-        process(sys.argv[-1])
+        with open(inp, "r") as f:
+            prog = f.read()
+
+    if "--reverse" in sys.argv:
+        reverse(prog)
+    else:
+        process(prog.replace(" <{overflowFlags = #arith.overflow<none>}>", "").replace('"scf.reduce"()', '"scf.yield"() {was_reduce}'))
