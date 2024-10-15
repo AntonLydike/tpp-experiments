@@ -2,8 +2,10 @@
 
 all: tpp_baseline.mlir tpp_deduplicated.mlir accfg_deduplicated.mlir
 
+PYTHON?=python3
+
 venv:
-	python3 -m venv venv
+	$(PYTHON) -m venv venv
 	git clone https://github.com/KULeuven-MICAS/snax-mlir
 	bash -c "cd snax-mlir; git checkout 170f122ff3a0732327cdadafe38fcdaf47860f1a"
 	bash -c "source venv/bin/activate && pip install ./snax-mlir && pip install git+https://github.com/xdslproject/xdsl.git@566496ddd8a9c5109fd577a230cba73c9ace47f3"
@@ -33,25 +35,6 @@ accfg_deduplicated.mlir: accfg-input.mlir
  --canonicalize \
  | sed 's/index/i64/g' \
  | mlir-opt -reconcile-unrealized-casts --convert-to-llvm > $@
-
-# individual benchmark runners rules:
-# these require the object file to be built. I don't know how to do that, so omitted from this file.
-
-tpp_baseline.out: tpp_baseline.o runner.cpp
-	clang++ -DKERNEL_NAME=tpp_baseline -O3 $^ -o $@
-
-tpp_deduplicated.out: tpp_deduplicated.o runner.cpp
-	clang++ -DKERNEL_NAME=tpp_deduplicated -O3 $^ -o $@
-
-accfg_deduplicated.out: accfg_deduplicated.o runner.cpp
-	clang++ -DKERNEL_NAME=accfg_deduplicated -O3 $^ -o $@
-
-dummy_kernel.out: dummy_kernel.o runner.cpp
-	clang++ -DKERNEL_NAME=dummy_kernel -O3 $^ -o $@
-
-# dummy runner, for testing:
-dummy_kernel.o: dummy_kernel.cpp
-	clang++ -c -O0 $< -o $@
 
 
 clean:
